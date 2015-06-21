@@ -11,3 +11,9 @@
 # produced vignettes
 vignettes/*.html
 vignettes/*.pdf
+
+# other
+data
+assignment.R
+machinelearning_cache/
+machinelearning_files/
