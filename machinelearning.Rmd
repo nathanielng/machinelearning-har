@@ -58,6 +58,8 @@ df.test  <- subset(df.test, select=col.NA.percentages < 0.9)
 df.train <- clean.dataset(df.train)
 df.test  <- clean.dataset(df.test)
 ```
+Here, we have decided that columns with more than 90% NAs are
+unlikely to be able to improve the accuracy of the models.
 
 ### Splitting the dataset into training and testing sets
 
