@@ -177,7 +177,7 @@ predict3 <- function(model1,model2,model3,my.test.data) {
 combine3 <- function(model1,model2,model3,my.test.data) {
   predDF <- predict3(model1,model2,model3,my.test.data)
   predDF$classe <- my.test.data$classe
-  combinedModel <- train(classe ~ ., method="C5.0", data=predDF)
+  combinedModel <- train(classe ~ ., method="rf", data=predDF)
   combinedModel
 }
 combinedModel <- combine3(rfModel1s,gbmModel1,C50Model1,df.train[fold2,])
