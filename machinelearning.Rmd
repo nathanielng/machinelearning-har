@@ -1,0 +1,213 @@
+---
+title: "Machine Learning for Human Activity Recognition"
+output: html_document
+---
+
+## Summary
+
+This project builds a machine learning model to classify human activity,
+as measured by accelerometers, into one of 5 categories.
+The accuracy of the model is evaluated for out of sample errors,
+and predictions are made on a final set of size 20.
+
+## Data
+
+The dataset consists of accelerometer data from the belt, forearm, arm, and dumbell of 6 participants.
+These participants were asked to perform barbell lifts in 5 different ways.
+Further details are available
+[here](http://groupware.les.inf.puc-rio.br/har).
+The data is loaded into R as follows:
+```{r, loaddata, cache=TRUE}
+if (!file.exists("data/")) { dir.create("./data/") }
+if (!file.exists("data/pml-training.csv")) { download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv","data/pml-training.csv",method="curl") }
+if (!file.exists("data/pml-testing.csv"))  { download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", "data/pml-testing.csv", method="curl") }
+df.train <- read.csv("data/pml-training.csv", na.strings=c("","NA"))
+df.test  <- read.csv("data/pml-testing.csv",  na.strings=c("","NA"))
+```
+
+### Cleaning the dataset
+
+First, functions are introduced for counting columns with NAs,
+cleaning column names, and removing columns unnecessary for building
+the prediction model.
+```{r, cleandatafns, cache=TRUE}
+col.count.NAs <- function(df) {
+  apply(df, 2, function(x) sum(is.na(x)))
+}
+
+clean.dataset <- function(df) {
+  col.names <- names(df)
+  names(df) <- gsub("_", ".", col.names)
+  df <- subset(df,select=-cvtd.timestamp)
+  df <- subset(df,select=-raw.timestamp.part.1)
+  df <- subset(df,select=-raw.timestamp.part.2)
+  df <- subset(df,select=-new.window)
+  df <- subset(df,select=-num.window)
+  df <- subset(df,select=-X)
+  df <- subset(df,select=-user.name)
+  df
+}
+```
+
+Next, with these functions, the data frames, `df.train` and `df.test`,
+are processed as follows:
+```{r, cleandata, cache=TRUE}
+col.NA.percentages <- col.count.NAs(df.train)/dim(df.train[1])
+df.train <- subset(df.train,select=col.NA.percentages < 0.9)
+df.test  <- subset(df.test, select=col.NA.percentages < 0.9)
+df.train <- clean.dataset(df.train)
+df.test  <- clean.dataset(df.test)
+```
+
+### Splitting the dataset into training and testing sets
+
+As the data set is huge, processing takes a considerable amount
+of time. Little difference in accuracy is observed when if the
+model is trained on 20% of the data (versus 30%).  Hence,
+only 20% of the data is used for the training set.  The remaining
+data can be used for testing / validation, or estimating out
+of sample errors.
+```{r, splitdata, cache=TRUE}
+suppressPackageStartupMessages(library(caret))
+set.seed(314159)
+folds <- createFolds(y=df.train$classe, k=5, list=TRUE)
+fold1 <- folds[[1]]
+fold2 <- folds[[2]]
+fold3 <- folds[[3]]
+fold4 <- folds[[4]]
+fold5 <- folds[[5]]
+training1 <- df.train[fold1,]
+testing1  <- df.train[fold4,]
+validatn1 <- df.train[fold5,]
+```
+
+## The Machine Learning Model
+
+Multicore processing is enabled using the `doParallel` library:
+```{r, enableparallel}
+suppressPackageStartupMessages(library(doParallel))
+ncpus <- detectCores()
+cl <- makeCluster(ifelse(ncpus > 4, 4, ncpus))
+registerDoParallel(cl)
+```
+
+The machine learning models are built using the `train()` function.
+A list of available methods was checked using `names(getModelInfo())`,
+whereby methods 'rf', 'gbm', and 'C5.0' were found to give good accuracy.
+```{r, cache=TRUE}
+tc <- trainControl(method="cv", number=5)
+set.seed(314159)
+rfModel1s <- train(classe ~ ., data=training1, method="rf", prox=TRUE, trControl=tc, preProc = c("center", "scale"))
+gbmModel1 <- train(classe ~ ., data=training1, method="gbm", trControl=tc)
+C50Model1 <- train(classe ~ ., data=training1, method="C5.0", trControl=tc)
+```
+
+### Estimates on out-of-sample accuracy
+To get an estimate on the out-of-sample accuracy,
+the following functions were used:
+```{r, getaccuracy}
+get.prediction.1 <- function(my.model, my.test.data) {
+  my.pred <- predict(my.model,newdata=my.test.data)
+  tbl <- table(my.pred,my.test.data$classe)
+  acc <- sum(diag(tbl)) / sum(rowSums(tbl))
+  acc
+}
+
+get.prediction <- function(my.model) {
+  c(get.prediction.1(my.model, df.train[fold2,]),
+    get.prediction.1(my.model, df.train[fold3,]),
+    get.prediction.1(my.model, df.train[fold4,]),
+    get.prediction.1(my.model, df.train[fold5,]))
+}
+```
+
+Apparently, the out-of-sample accuracies are good in all 3 cases:
+```{r, outofsampleaccuracy, cache=TRUE}
+(rf.acc  <- get.prediction(rfModel1s))
+(gbm.acc <- get.prediction(gbmModel1))
+(C50.acc <- get.prediction(C50Model1))
+```
+
+### Receiver Operating Characteristic (ROC) Curve
+
+For the ROC curve, we choose the random forest model for our plot,
+using the following code:
+```{r, roc, cache=TRUE}
+library(pROC)
+rf1Probs <- predict(rfModel1s, testing1, type = "prob")
+rf1ROCa <- roc(testing1$classe, rf1Probs[, "A"])
+rf1ROCb <- roc(testing1$classe, rf1Probs[, "B"])
+rf1ROCc <- roc(testing1$classe, rf1Probs[, "C"])
+rf1ROCd <- roc(testing1$classe, rf1Probs[, "D"])
+rf1ROCe <- roc(testing1$classe, rf1Probs[, "E"])
+plot( rf1ROCa, type = "S", col='red', bty='n',
+      main="Receiver Operating Characteristic (ROC) Curves")
+lines(rf1ROCb, type = "S", col='orange')
+lines(rf1ROCc, type = "S", col='green')
+lines(rf1ROCd, type = "S", col='blue')
+lines(rf1ROCe, type = "S", col='pink')
+legend(0.25, 0.5, c("A","B","C","D","E"), lty=rep(1,5), lwd=rep(2,5),
+       col=c("red","orange","green","blue","pink"))
+```
+
+### Combining models
+
+Lastly, a check is made to see if a combined model would
+further improve accuracy.
+```{r, cache=TRUE}
+predict3 <- function(model1,model2,model3,my.test.data) {
+  pred1 <- predict(model1,newdata=my.test.data)
+  pred2 <- predict(model2,newdata=my.test.data)
+  pred3 <- predict(model3,newdata=my.test.data)
+  data.frame(pred1,pred2,pred3)
+}
+combine3 <- function(model1,model2,model3,my.test.data) {
+  predDF <- predict3(model1,model2,model3,my.test.data)
+  predDF$classe <- my.test.data$classe
+  combinedModel <- train(classe ~ ., method="C5.0", data=predDF)
+  combinedModel
+}
+combinedModel <- combine3(rfModel1s,gbmModel1,C50Model1,df.train[fold2,])
+predVDF <- predict3(rfModel1s,gbmModel1,C50Model1,validatn1)
+combPredV <- predict(combinedModel,newdata=predVDF)
+stopCluster(cl)
+```
+
+Apparently, the accuracy does not substantially improve:
+```{r}
+(tbl <- table(combPredV,validatn1$classe))
+(combined.accuracy <- sum(diag(tbl)) / sum(rowSums(tbl)))
+```
+
+## Predictions on `df.test`
+
+Finally, we test each of the models on the 20 observations
+in `df.test`
+
+```{r, dftest1}
+answers1 = predict(rfModel1s,newdata=df.test)
+answers2 = predict(gbmModel1,newdata=df.test)
+answers3 = predict(C50Model1,newdata=df.test)
+predVDF <- predict3(rfModel1s,gbmModel1,C50Model1,df.test)
+answers4 <- predict(combinedModel,newdata=predVDF)
+```
+
+Apparently, the answers are mostly identical:
+```{r, dftest2}
+rbind(answers1,answers2,answers3,answers4)
+```
+
+The final row, coming from the combined model, is chosen as
+the final answer for submission:
+```{r, dftest3}
+(answers <- answers4)
+```
+
+## Summary
+
+- machine learning models are built from 20% of the data available
+- methods: rf (random forest), gbm, and C5.0 are found to have minimum
+  accuracies of `r min(rf.acc)`, `r min(gbm.acc)`, and `r min(C50.acc)`,
+  respectively.
+- the combined model did not substantially improve accuracy; accuracy
+  for the combined case was `r combined.accuracy`.
