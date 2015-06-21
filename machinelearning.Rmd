@@ -93,11 +93,12 @@ cl <- makeCluster(ifelse(ncpus > 4, 4, ncpus))
 registerDoParallel(cl)
 ```
 
-The machine learning models are built using the `train()` function.
+The machine learning models are built using the `train()` function,
+with the `trainControl()` set to use 5-fold cross validation.
 A list of available methods was checked using `names(getModelInfo())`,
 whereby methods 'rf', 'gbm', and 'C5.0' were found to give good accuracy.
-```{r, cache=TRUE}
-tc <- trainControl(method="cv", number=5)
+```{r, trainmodel, cache=TRUE}
+tc <- trainControl(method="cv", number=5) #5-fold cross-validation
 set.seed(314159)
 rfModel1s <- train(classe ~ ., data=training1, method="rf", prox=TRUE, trControl=tc, preProc = c("center", "scale"))
 gbmModel1 <- train(classe ~ ., data=training1, method="gbm", trControl=tc)
@@ -157,11 +158,16 @@ legend(0.25, 0.5, c("A","B","C","D","E"), lty=rep(1,5), lwd=rep(2,5),
        col=c("red","orange","green","blue","pink"))
 ```
 
+The random forest model details are as follows:
+```{r, rfmodel1s}
+rfModel1s
+```
+
 ### Combining models
 
 Lastly, a check is made to see if a combined model would
 further improve accuracy.
-```{r, cache=TRUE}
+```{r, combinemodels, cache=TRUE}
 predict3 <- function(model1,model2,model3,my.test.data) {
   pred1 <- predict(model1,newdata=my.test.data)
   pred2 <- predict(model2,newdata=my.test.data)
@@ -181,7 +187,7 @@ stopCluster(cl)
 ```
 
 Apparently, the accuracy does not substantially improve:
-```{r}
+```{r, combinedaccuracy}
 (tbl <- table(combPredV,validatn1$classe))
 (combined.accuracy <- sum(diag(tbl)) / sum(rowSums(tbl)))
 ```
