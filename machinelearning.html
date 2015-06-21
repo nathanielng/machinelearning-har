@@ -182,13 +182,17 @@ get.prediction &lt;- function(my.model) {
     get.prediction.1(my.model, df.train[fold4,]),
     get.prediction.1(my.model, df.train[fold5,]))
 }</code></pre>
-<p>Apparently, the out-of-sample accuracies are good in all 3 cases:</p>
+<p>Apparently, the out-of-sample accuracies (note: <code>out-of-sample error = 1 - out-of-sample accuracy</code> assumed) are good in all 3 cases:</p>
 <pre class="r"><code>(rf.acc  &lt;- get.prediction(rfModel1s))</code></pre>
 <pre><code>## [1] 0.9778344 0.9796126 0.9734964 0.9765605</code></pre>
 <pre class="r"><code>(gbm.acc &lt;- get.prediction(gbmModel1))</code></pre>
 <pre><code>## [1] 0.9633121 0.9561672 0.9464832 0.9513376</code></pre>
 <pre class="r"><code>(C50.acc &lt;- get.prediction(C50Model1))</code></pre>
 <pre><code>## [1] 0.9765605 0.9813965 0.9732416 0.9737580</code></pre>
+<p>Maximum out of sample error:</p>
+<pre class="r"><code>1-apply(data.frame(rf=rf.acc,gbm=gbm.acc,C50=C50.acc),2,max)</code></pre>
+<pre><code>##         rf        gbm        C50 
+## 0.02038736 0.03668790 0.01860347</code></pre>
 </div>
 <div id="receiver-operating-characteristic-roc-curve" class="section level3">
 <h3>Receiver Operating Characteristic (ROC) Curve</h3>

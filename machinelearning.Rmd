@@ -121,11 +121,16 @@ get.prediction <- function(my.model) {
 }
 ```
 
-Apparently, the out-of-sample accuracies are good in all 3 cases:
+Apparently, the out-of-sample accuracies (note: `out-of-sample error = 1 - out-of-sample accuracy` assumed) are good in all 3 cases:
 ```{r, outofsampleaccuracy, cache=TRUE}
 (rf.acc  <- get.prediction(rfModel1s))
 (gbm.acc <- get.prediction(gbmModel1))
 (C50.acc <- get.prediction(C50Model1))
+```
+
+Maximum out of sample error:
+```{r, outofsampleerror}
+1-apply(data.frame(rf=rf.acc,gbm=gbm.acc,C50=C50.acc),2,max)
 ```
 
 ### Receiver Operating Characteristic (ROC) Curve
